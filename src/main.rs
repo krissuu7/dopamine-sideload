@@ -110,7 +110,7 @@ fn get_2fa_code_gui() -> String {
 
         // The sideloader receives --device-udid from the daemon. Do not pass
         // those CLI arguments to GTK/GApplication, which would reject them.
-        app.run_with_args(&[]);
+        app.run_with_args::<&str>(&[]);
     });
 
     match rx.recv() {
