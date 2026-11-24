@@ -1,0 +1,7 @@
+/target/
+/dist/
+*.ipa
+Dopamine.version
+.env
+.env.*
+*.log

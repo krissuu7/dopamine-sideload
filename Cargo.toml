@@ -1,0 +1,29 @@
+[package]
+name = "dopamine-linux"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "dopamine-sideload"
+path = "src/main.rs"
+
+[[bin]]
+name = "dopamine-daemon"
+path = "src/bin/daemon.rs"
+
+[[bin]]
+name = "dopamine-settings"
+path = "src/bin/settings.rs"
+
+[dependencies]
+futures-util = "0.3.34"
+idevice = { version = "0.1.68", features = ["usbmuxd", "house_arrest", "afc", "core_device_proxy", "remote_pairing", "tcp", "tunnel_tcp_stack", "xpc", "rsd", "pair"] }
+isideload = { version = "0.4.6", features = ["fs-storage"] }
+tokio = { version = "1.53.1", features = ["full"] }
+rpassword = "7"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+rustls = "0.23"
+keyring = "4.2.0"
+gtk4 = "0.11.5"
+libadwaita = "0.9.2"
