@@ -1,168 +1,196 @@
 # Dopamine Sideload for Linux
 
-A Linux desktop utility for installing [Dopamine](https://github.com/opa334/Dopamine) on a connected iPhone over USB.
+A Linux desktop helper for installing and updating **[Dopamine](https://github.com/opa334/Dopamine)** on a connected iPhone.
 
-The project combines an automatic USB device monitor, the sideloading process, a GTK settings application, and an IPA updater. It uses the Rust `isideload` library for Apple account authentication and app installation.
+The project combines a USB device monitor, an Apple account sign-in flow, a GTK settings application, and an updater for the official Dopamine IPA. Sideloading is handled by the Rust `isideload` library.
 
-> **Disclaimer:** This is an unofficial, community-developed tool. It is not affiliated with, endorsed by, or supported by Dopamine's developers or Apple.
+> **Unofficial project.** This repository is not affiliated with or endorsed by the Dopamine project or Apple.
 
 ## Features
 
-- Automatically detects connected iPhones through `usbmuxd`.
-- Starts the sideloading process when a supported USB device is detected.
-- Provides a GTK settings application for Apple ID credentials and daemon control.
-- Displays device, daemon, sideloading, and local IPA status.
-- Opens graphical prompts for Apple two-factor authentication and certificate selection.
-- Stores Apple ID credentials through the system Secret Service API instead of plaintext files.
-- Downloads the latest Dopamine IPA from the official Dopamine GitHub releases.
-- Validates the downloaded IPA and verifies its SHA-256 digest when the release provides one.
-- Checks for IPA updates automatically once a day.
+- **Automatic USB detection** — monitors `usbmuxd` and starts the sideloader when an iPhone is connected.
+- **Desktop settings** — GTK 4 / libadwaita application available from the desktop application menu.
+- **Apple account credentials** — stores the Apple ID and password using the system Secret Service keyring, rather than a plaintext configuration file.
+- **Two-factor authentication** — displays a graphical prompt when Apple requests a trusted-device verification code.
+- **Certificate management** — displays a graphical selection dialog when the Apple Developer certificate limit is reached.
+- **Dopamine IPA updater** — downloads the latest IPA from the official `opa334/Dopamine` GitHub release, validates the archive, and checks the published SHA-256 digest when available.
+- **Scheduled IPA checks** — a systemd user timer checks for a new Dopamine release daily.
 
 ## Requirements
 
-- A Linux distribution with **systemd user services**.
-- A working graphical desktop session with GTK 4 and libadwaita support.
-- `usbmuxd` and `libimobiledevice`.
-- A Secret Service-compatible password manager, such as GNOME Keyring.
-- An Apple account and an iPhone supported by the selected Dopamine release.
-- A USB cable and the iPhone unlocked and trusted by the computer.
+- A Linux desktop session with **systemd user services**.
+- A working **Secret Service** provider (for example, GNOME Keyring or KWallet configured to provide Secret Service).
+- `usbmuxd` and the libimobiledevice utilities.
+- GTK 4, libadwaita, D-Bus development files, and `pkg-config`.
+- Rust and Cargo **1.88 or newer**. The installer can offer to install the stable toolchain with rustup if the system Rust is older.
+- An active graphical user session for the settings application and interactive 2FA / certificate dialogs.
 
-The installer builds the application from source, so Rust/Cargo and the GTK, libadwaita, and D-Bus development packages are also required. Missing supported system packages can be installed by the installer after confirmation.
+The installer supports package installation through **DNF, APT, Pacman, and Zypper**. Package-manager support does not mean every distribution has been tested; see the test status below.
 
 ## Installation
 
-Run the following command in a terminal:
+Open a terminal in your desktop session and run:
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload bash
+```bash
+curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh \
+  | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload bash
 ```
 
 The installer:
 
 1. Downloads the selected repository branch.
-2. Checks for required build tools and libraries.
-3. Offers to install missing dependencies using the detected package manager.
+2. Checks for the required build and runtime dependencies.
+3. Asks before installing missing system packages.
 4. Builds the daemon, sideloader, and settings application locally.
-5. Installs the application files and user-level systemd services.
-6. Downloads the latest Dopamine IPA.
-7. Enables the daily IPA update timer and starts the USB monitoring daemon.
+5. Installs the binaries, desktop entry, icon, and systemd user units.
+6. Downloads the latest Dopamine IPA and enables the daily updater timer.
+7. Enables and starts the USB monitoring daemon.
 
-The installer currently recognizes **DNF, APT, Pacman, and Zypper**.
+The installer may request your password through `sudo` when system packages need to be installed.
 
-### Install from another branch
+### Select a branch
 
-Set `DOPAMINE_REF` to the branch name:
+The default branch is `main`. To install another branch, set `DOPAMINE_REF`:
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload DOPAMINE_REF=branch-name bash
+```bash
+curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh \
+  | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload DOPAMINE_REF=BRANCH_NAME bash
 ```
 
-### Install without starting the daemon
+### Reinstall or update
 
-For development or testing:
+Run the same installation command again to fetch the latest source from the selected branch, rebuild the applications, and replace the installed binaries and service files.
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload DOPAMINE_START_DAEMON=0 bash
+The installer keeps the application data directory, including saved credentials and the downloaded IPA. It does not currently provide an incremental binary update: each run builds the Rust applications again.
+
+### Optional installation settings
+
+- `DOPAMINE_START_DAEMON=0` — install without enabling or starting the USB monitoring daemon.
+- `DOPAMINE_HOME=/path/to/directory` — use a custom application data directory.
+
+Example:
+
+```bash
+DOPAMINE_START_DAEMON=0 \
+  curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh \
+  | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload bash
 ```
 
-## First launch
+## First run
 
 1. Open **Dopamine Sideload Settings** from your desktop application menu.
-2. Enter your Apple ID and password, then select **Save login details**.
-3. Connect your iPhone over USB, unlock it, and accept the **Trust This Computer** prompt if shown.
-4. Keep the user session active while the daemon detects the device and starts the sideloader.
-5. Follow the graphical prompts for Apple two-factor authentication or certificate management when they appear.
+2. Enter your Apple ID and password, then choose **Save login details**.
+3. Connect the iPhone over USB, unlock it, and accept **Trust This Computer** if prompted.
+4. Keep the desktop session active. When Apple requests verification, enter the code in the 2FA dialog.
+5. If the Apple Developer certificate limit is reached, review the listed certificates and select only certificates you are willing to revoke.
 
-The daemon runs as a systemd **user** service. It monitors USB connections and launches the sideloader for the detected device. The sideloader authenticates with Apple, creates or reuses the required developer credentials, and installs the local IPA.
+The daemon starts the sideloader automatically when it detects a supported USB connection. Keep the phone connected and unlocked during the installation process.
 
-## Settings and commands
+**Certificate warning:** revoking an Apple Development certificate can affect other apps or workflows that depend on it. Do not revoke a certificate unless you know it is safe to do so.
 
-Launch the settings application from the desktop menu, or run:
+## How it is installed
 
-```sh
-dopamine-settings
-```
-
-Useful service commands:
-
-```sh
-systemctl --user status dopamine-daemon.service
-systemctl --user restart dopamine-daemon.service
-journalctl --user -u dopamine-daemon.service -f
-```
-
-The settings application can also enable or disable the daemon and retry the sideloading process.
-
-## Updating
-
-Run the same installation command again to fetch the latest repository version and rebuild/reinstall the application:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload bash
-```
-
-The IPA updater is separate from the application build. It checks the official [Dopamine releases](https://github.com/opa334/Dopamine/releases) daily and can also be run manually:
-
-```sh
-dopamine-update-ipa
-```
-
-## File locations
-
-By default, application data is stored under:
+The default application data directory is:
 
 ```text
 ~/.local/share/dopamine-sideload/
-├── bin/
-│   ├── dopamine-daemon
-│   ├── dopamine-sideload
-│   ├── dopamine-settings
-│   └── dopamine-update-ipa
 ├── Dopamine.ipa
-└── Dopamine.version
+├── Dopamine.version
+└── bin/
+    ├── dopamine-daemon
+    ├── dopamine-sideload
+    ├── dopamine-settings
+    └── dopamine-update-ipa
 ```
 
-The installation also creates user-level systemd units in `~/.config/systemd/user/`, a desktop entry, and an application icon. The data directory can be changed with `DOPAMINE_HOME`.
+The installer also creates:
 
-## Distribution status
+- `~/.local/bin/dopamine-settings` — command-line launcher for the settings application.
+- `~/.local/share/applications/dopamine-settings.desktop` — desktop menu entry.
+- `~/.config/systemd/user/dopamine-daemon.service` — USB monitoring service.
+- `~/.config/systemd/user/dopamine-updater.service` and `dopamine-updater.timer` — scheduled IPA updater.
 
-The installer contains dependency mappings for Fedora/DNF, Debian and Ubuntu/APT, Arch Linux/Pacman, and openSUSE/Zypper.
+If `XDG_DATA_HOME` or `XDG_CONFIG_HOME` is set, the corresponding paths follow those locations.
 
-**Testing status:** successful installation and sideloading have been tested on Fedora and Xubuntu (Ubuntu-based). The other package-manager paths are included but have not yet been independently verified. Package names and availability may vary by distribution release.
+## Useful commands
+
+Check the daemon:
+
+```bash
+systemctl --user status dopamine-daemon.service
+```
+
+View daemon and sideloader logs:
+
+```bash
+journalctl --user -u dopamine-daemon.service -f
+```
+
+Restart USB monitoring:
+
+```bash
+systemctl --user restart dopamine-daemon.service
+```
+
+Check the USB device list:
+
+```bash
+idevice_id -l
+```
+
+Check the updater timer:
+
+```bash
+systemctl --user status dopamine-updater.timer
+```
+
+## Distribution test status
+
+| Distribution family | Status |
+| --- | --- |
+| Fedora (DNF) | Tested |
+| Xubuntu (APT / Ubuntu base) | Tested |
+| Arch Linux (Pacman) | Package mapping implemented; testing pending |
+| openSUSE (Zypper) | Package mapping implemented; testing pending |
+
+Testing on one distribution does not guarantee compatibility with every release or desktop configuration in the same family. Reports from additional distributions are welcome.
 
 ## Troubleshooting
 
 ### The iPhone is not detected
 
-- Unlock the iPhone and accept the trust prompt.
+- Unlock the iPhone and reconnect the USB cable.
+- Accept the trust prompt on the iPhone.
 - Check that `usbmuxd` is installed and running.
-- Verify detection with:
+- Run `idevice_id -l` and confirm that the device UDID is listed.
+- Inspect the daemon log with `journalctl --user -u dopamine-daemon.service -n 150 --no-pager`.
 
-  ```sh
-  idevice_id -l
-  ```
+### A 2FA or certificate dialog does not appear
 
-### The sideloading process fails
+The dialogs require an active graphical desktop session. Start the daemon from a logged-in user session and make sure the session's GTK, D-Bus, and display environment is available to user services.
 
-Inspect the daemon log:
+### Apple sign-in or installation fails
 
-```sh
-journalctl --user -u dopamine-daemon.service -n 200 --no-pager
+Inspect the daemon log for the Apple authentication or sideloading error. Apple account verification, Developer Program restrictions, certificate limits, and device trust state can prevent installation even when USB detection works.
+
+## Project layout
+
+```text
+src/
+├── main.rs          # Apple sign-in and Dopamine sideloading
+├── lib.rs           # Shared paths and Secret Service access
+└── bin/
+    ├── daemon.rs    # usbmuxd device monitor
+    └── settings.rs  # GTK desktop settings application
+
+scripts/
+├── bootstrap.sh     # Download and launch the installer
+├── install.sh       # Dependencies, build, and installation
+└── update-ipa.sh    # Dopamine IPA release updater
 ```
 
-Check the reported Apple authentication, developer account, certificate, or device error before retrying.
+## Acknowledgements
 
-### A graphical authentication prompt does not appear
-
-The graphical prompts require an active desktop session. Run the daemon and sideloader from the logged-in user's systemd session, not from a root service or a headless session.
-
-## Limitations
-
-- A systemd user session and an active graphical login session are required for the normal desktop workflow.
-- The iPhone must be connected over USB and trusted by the computer.
-- Apple Developer account limits may require revoking an existing development certificate before another can be created.
-- Multiple connected devices and multiple Apple developer teams may require additional selection or configuration.
-
-## License
-
-See the repository's license file. If no license file is present, all rights remain with the respective copyright holders.
+- [Dopamine](https://github.com/opa334/Dopamine) by opa334.
+- [isideload](https://crates.io/crates/isideload) for Apple account authentication and sideloading.
+- [libimobiledevice](https://libimobiledevice.org/) and `usbmuxd` for Linux iOS device connectivity.
