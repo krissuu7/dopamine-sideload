@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::sync::mpsc;
 
 use gtk4::prelude::*;
-use gtk4::{Application, ApplicationWindow, Button, Entry, Label, Orientation};
+use gtk4::{Application, ApplicationWindow, Button, CheckButton, Entry, Label, Orientation};
 use libadwaita as adw;
 
 use idevice::usbmuxd::{UsbmuxdAddr, UsbmuxdConnection};
@@ -29,6 +29,80 @@ use isideload::{
 
 
 use dopamine_linux::{get_secret, ipa_path};
+
+
+fn get_cert_selection_gui(certificates: Vec<(String, String, String)>) -> Vec<String> {
+    let (tx, rx) = mpsc::channel::<Vec<String>>();
+
+    std::thread::spawn(move || {
+        if let Err(error) = adw::init() {
+            eprintln!("Nie udało się uruchomić libadwaita dla wyboru certyfikatów: {error}");
+            return;
+        }
+
+        let app = Application::builder()
+            .application_id("pl.krissu.DopamineCertSelection")
+            .build();
+
+        let tx_activate = tx.clone();
+        app.connect_activate(move |app| {
+            let window = ApplicationWindow::builder()
+                .application(app)
+                .title("Dopamine Sideload — certyfikaty")
+                .default_width(520)
+                .default_height(320)
+                .build();
+
+            let root = gtk4::Box::builder()
+                .orientation(Orientation::Vertical)
+                .spacing(12)
+                .margin_top(20)
+                .margin_bottom(20)
+                .margin_start(20)
+                .margin_end(20)
+                .build();
+
+            root.append(&Label::new(Some(
+                "Osiągnięto limit certyfikatów Apple Developer.\nWybierz certyfikat(y), które chcesz unieważnić:"
+            )));
+
+            let mut checks: Vec<(CheckButton, String)> = Vec::new();
+            for (name, machine, serial) in &certificates {
+                let label = format!("{name} — {machine}");
+                let check = CheckButton::with_label(&label);
+                root.append(&check);
+                checks.push((check, serial.clone()));
+            }
+
+            let submit = Button::with_label("Unieważnij zaznaczone i kontynuuj");
+            let tx_submit = tx_activate.clone();
+            let app_submit = app.clone();
+            submit.connect_clicked(move |_| {
+                let selected = checks
+                    .iter()
+                    .filter(|(check, _)| check.is_active())
+                    .map(|(_, serial)| serial.clone())
+                    .collect::<Vec<_>>();
+                let _ = tx_submit.send(selected);
+                app_submit.quit();
+            });
+            root.append(&submit);
+
+            window.set_child(Some(&root));
+            window.present();
+        });
+
+        app.run_with_args::<&str>(&[]);
+    });
+
+    match rx.recv() {
+        Ok(selected) => selected,
+        Err(error) => {
+            eprintln!("Okno wyboru certyfikatów nie zwróciło wyboru: {error}");
+            Vec::new()
+        }
+    }
+}
 
 fn get_2fa_code_gui() -> String {
     let (tx, rx) = mpsc::channel::<String>();
@@ -334,64 +408,30 @@ async fn main() {
             )
         };
 
-    let cert_selection_prompt =
-        async |certs: Vec<DevelopmentCertificate>| {
-            println!();
-            println!(
-                "Osiągnięto limit certyfikatów."
-            );
+    let cert_selection_prompt = async |certs: Vec<DevelopmentCertificate>| {
+        let options = certs
+            .into_iter()
+            .map(|cert| {
+                (
+                    cert.name.unwrap_or_else(|| "<Unnamed>".to_string()),
+                    cert.machine_name.unwrap_or_else(|| "<No Machine Name>".to_string()),
+                    cert.serial_number.unwrap_or_default(),
+                )
+            })
+            .collect::<Vec<_>>();
 
-            for (index, cert) in certs.iter().enumerate() {
-                println!(
-                    "{}: {} — {}",
-                    index + 1,
-                    cert.name
-                        .as_deref()
-                        .unwrap_or("<Unnamed>"),
-                    cert.machine_name
-                        .as_deref()
-                        .unwrap_or("<No Machine Name>")
-                );
-            }
+        let selected = tokio::task::spawn_blocking(move || {
+            get_cert_selection_gui(options)
+        })
+        .await
+        .unwrap_or_default();
 
-            println!(
-                "Podaj numery certyfikatów do usunięcia, oddzielone przecinkami:"
-            );
-
-            let mut input = String::new();
-
-            io::stdin()
-                .read_line(&mut input)
-                .unwrap();
-
-            let selections: Vec<usize> = input
-                .trim()
-                .split(',')
-                .filter_map(|value| {
-                    value.trim().parse::<usize>().ok()
-                })
-                .filter(|&number| {
-                    number > 0 &&
-                    number <= certs.len()
-                })
-                .collect();
-
-            if selections.is_empty() {
-                return Ok(None);
-            }
-
-            Ok(Some(
-                selections
-                    .into_iter()
-                    .map(|number| {
-                        certs[number - 1]
-                            .serial_number
-                            .clone()
-                            .unwrap_or_default()
-                    })
-                    .collect::<Vec<_>>()
-            ))
-        };
+        if selected.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(selected))
+        }
+    };
 
     println!();
     println!("Budowanie sideloadera...");
