@@ -22,23 +22,23 @@ needs_packages=0
 for command in cargo rustc pkg-config curl jq python3 systemctl usbmuxd; do
     command -v "$command" >/dev/null || needs_packages=1
 done
-pkg-config --exists gtk4 libadwaita-1 2>/dev/null || needs_packages=1
+pkg-config --exists gtk4 libadwaita-1 dbus-1 2>/dev/null || needs_packages=1
 
 if (( needs_packages )); then
     if command -v dnf >/dev/null; then
         package_manager=dnf
-        packages=(cargo rust pkgconf-pkg-config gtk4-devel libadwaita-devel curl jq python3 usbmuxd systemd)
+        packages=(cargo rust pkgconf-pkg-config gtk4-devel libadwaita-devel dbus-devel curl jq python3 usbmuxd systemd)
     elif command -v apt-get >/dev/null; then
         package_manager=apt-get
-        packages=(cargo rustc pkg-config libgtk-4-dev libadwaita-1-dev curl jq python3 usbmuxd systemd)
+        packages=(cargo rustc pkg-config libgtk-4-dev libadwaita-1-dev libdbus-1-dev curl jq python3 usbmuxd systemd)
     elif command -v pacman >/dev/null; then
         package_manager=pacman
-        packages=(rust cargo pkgconf gtk4 libadwaita curl jq python usbmuxd systemd)
+        packages=(rust cargo pkgconf gtk4 libadwaita dbus curl jq python usbmuxd systemd)
     elif command -v zypper >/dev/null; then
         package_manager=zypper
-        packages=(rust cargo pkg-config gtk4-devel libadwaita-devel curl jq python3 usbmuxd systemd)
+        packages=(rust cargo pkg-config gtk4-devel libadwaita-devel dbus-1-devel curl jq python3 usbmuxd systemd)
     else
-        echo "Nieobsługiwana dystrybucja pakietów. Zainstaluj Rust/Cargo, GTK4, libadwaita, pkg-config, curl, jq, Python 3, systemd i usbmuxd ręcznie." >&2
+        echo "Nieobsługiwana dystrybucja pakietów. Zainstaluj Rust/Cargo, GTK4, libadwaita, D-Bus development files, pkg-config, curl, jq, Python 3, systemd i usbmuxd ręcznie." >&2
         exit 1
     fi
 
@@ -61,7 +61,7 @@ fi
 for command in cargo rustc pkg-config curl jq python3 systemctl usbmuxd; do
     command -v "$command" >/dev/null || { echo "Po instalacji nadal brakuje komendy: $command" >&2; exit 1; }
 done
-pkg-config --exists gtk4 libadwaita-1 || { echo "Brakuje bibliotek deweloperskich GTK4/libadwaita." >&2; exit 1; }
+pkg-config --exists gtk4 libadwaita-1 dbus-1 || { echo "Brakuje bibliotek deweloperskich GTK4/libadwaita lub D-Bus." >&2; exit 1; }
 
 rust_version=$(rustc --version | awk '{print $2}')
 if [[ "$rust_version" =~ ^([0-9]+)\.([0-9]+)\. ]] &&
