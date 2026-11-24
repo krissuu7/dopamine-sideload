@@ -71,9 +71,8 @@ The installer keeps the application data directory, including saved credentials 
 Example:
 
 ```bash
-DOPAMINE_START_DAEMON=0 \
-  curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh \
-  | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload bash
+curl -fsSL https://raw.githubusercontent.com/krissuu7/dopamine-sideload/main/scripts/bootstrap.sh \
+  | DOPAMINE_REPOSITORY=krissuu7/dopamine-sideload DOPAMINE_START_DAEMON=0 bash
 ```
 
 ## First run
